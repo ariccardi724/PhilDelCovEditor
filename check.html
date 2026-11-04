@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install check</title>
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<style>body{font-family:system-ui,Segoe UI,sans-serif;max-width:640px;margin:24px auto;padding:0 16px;color:#14301E}
+h1{font-size:22px}li{margin:6px 0;line-height:1.4;list-style:none}.ok{color:#1f7a3a;font-weight:700}.bad{color:#b4351b;font-weight:700}.note{color:#5b7364}
+ul{padding:0}code{background:#eef5f0;padding:1px 5px;border-radius:4px}</style></head>
+<body><h1>Phila-Del install check</h1>
+<p class="note">Open this page on the device that will not install the app, then screenshot it.</p>
+<ul id="out"></ul>
+<script>
+var out=document.getElementById("out");
+function row(ok,label,detail){var li=document.createElement("li");li.innerHTML='<span class="'+(ok?'ok':'bad')+'">'+(ok?'OK':'PROBLEM')+'</span> '+label+(detail?' <span class="note">- '+detail+'</span>':'');out.appendChild(li);}
+function info(label,detail){var li=document.createElement("li");li.innerHTML='<span class="note">INFO</span> '+label+' <span class="note">- '+detail+'</span>';out.appendChild(li);}
+row(location.protocol==="https:"||location.hostname==="localhost","Secure address (https)",location.origin);
+var ua=navigator.userAgent, ios=/iPad|iPhone|iPod/.test(ua);
+info("Device",(ios?"iPhone/iPad":/Android/.test(ua)?"Android":"Computer")+" | "+(/Edg\//.test(ua)?"Edge":/CriOS|Chrome\//.test(ua)?"Chrome":/Safari\//.test(ua)?"Safari":"Other browser"));
+info("Running as an installed app?",(window.matchMedia("(display-mode: standalone)").matches||navigator.standalone)?"Yes. Browsers do not offer Install when already installed.":"No");
+var prompted=false; window.addEventListener("beforeinstallprompt",function(e){prompted=true;});
+fetch("manifest.webmanifest",{cache:"no-store"}).then(function(r){
+  var ct=r.headers.get("content-type")||""; row(r.ok,"Manifest file found","status "+r.status+", type "+ct);
+  return r.text().then(function(t){var m; try{m=JSON.parse(t);}catch(e){row(false,"Manifest is valid JSON","the server sent something else (often the home page). The files may not have uploaded to the top level.");return null;}
+    row(true,"Manifest is valid JSON","name: "+m.name+", display: "+m.display);
+    var icons=m.icons||[]; row(icons.some(function(i){return /192/.test(i.sizes)})&&icons.some(function(i){return /512/.test(i.sizes)}),"Has 192 and 512 icons",icons.length+" icons listed");
+    icons.forEach(function(i){var im=new Image();im.onload=function(){row(true,"Icon loads: "+i.src,im.naturalWidth+"x"+im.naturalHeight+" ("+i.purpose+")");};im.onerror=function(){row(false,"Icon loads: "+i.src,"not found");};im.src=i.src+"?t="+Date.now();});
+    return m;});
+}).catch(function(e){row(false,"Manifest file found","could not be fetched. If a sign-in page is in front of the site, sign in first.");});
+fetch("sw.js",{cache:"no-store"}).then(function(r){row(r.ok&&/javascript/.test(r.headers.get("content-type")||""),"Offline helper (sw.js) found","status "+r.status+", type "+(r.headers.get("content-type")||""));}).catch(function(){row(false,"Offline helper (sw.js) found","could not be fetched");});
+fetch("apple-touch-icon.png",{cache:"no-store"}).then(function(r){row(r.ok&&/image/.test(r.headers.get("content-type")||""),"iPhone home-screen icon found","status "+r.status+", type "+(r.headers.get("content-type")||""));}).catch(function(){row(false,"iPhone home-screen icon found","could not be fetched");});
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").then(function(){return navigator.serviceWorker.ready;}).then(function(reg){row(!!reg.active,"Offline helper is running","scope "+reg.scope);}).catch(function(e){row(false,"Offline helper is running",String(e));});}
+else row(false,"Browser supports offline helpers","this browser or its settings block them");
+setTimeout(function(){info("Browser install prompt",prompted?"The browser says this app can be installed. Use the Install icon in the address bar or menu.":(ios?"iPhone never shows a prompt. Use Share, then Add to Home Screen.":"The browser has not offered it yet. If every check above is OK, the app may already be installed, or company settings may block installing."));},3500);
+</script></body></html>
